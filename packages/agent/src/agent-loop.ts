@@ -615,13 +615,16 @@ async function prepareToolCall(
 
 	try {
 		const preparedToolCall = prepareToolCallArguments(tool, toolCall);
-		const validatedArgs = validateToolArguments(tool, preparedToolCall);
+		const preparedArgs =
+			tool.argumentValidation === "passthrough"
+				? structuredClone(preparedToolCall.arguments)
+				: validateToolArguments(tool, preparedToolCall);
 		if (config.beforeToolCall) {
 			const beforeResult = await config.beforeToolCall(
 				{
 					assistantMessage,
 					toolCall,
-					args: validatedArgs,
+					args: preparedArgs,
 					context: currentContext,
 				},
 				signal,
@@ -656,7 +659,7 @@ async function prepareToolCall(
 			kind: "prepared",
 			toolCall,
 			tool,
-			args: validatedArgs,
+			args: preparedArgs,
 		};
 	} catch (error) {
 		return {

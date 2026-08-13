@@ -368,6 +368,121 @@ describe("agentLoop with AgentMessage", () => {
 		expect(toolResult?.role === "toolResult" ? toolResult.usage : undefined).toEqual(patchedToolUsage);
 	});
 
+	it("should validate tool arguments against the schema by default", async () => {
+		const toolSchema = Type.Object({ value: Type.String() });
+		let executed = false;
+		const tool: AgentTool<typeof toolSchema, undefined> = {
+			name: "echo",
+			label: "Echo",
+			description: "Echo tool",
+			parameters: toolSchema,
+			async execute() {
+				executed = true;
+				return { content: [], details: undefined };
+			},
+		};
+
+		const context: AgentContext = { systemPrompt: "", messages: [], tools: [tool] };
+		const config: AgentLoopConfig = { model: createModel(), convertToLlm: identityConverter };
+		let callIndex = 0;
+		const stream = agentLoop([createUserMessage("echo something")], context, config, undefined, () => {
+			const mockStream = new MockAssistantStream();
+			queueMicrotask(() => {
+				const message =
+					callIndex === 0
+						? createAssistantMessage([{ type: "toolCall", id: "tool-1", name: "echo", arguments: {} }], "toolUse")
+						: createAssistantMessage([{ type: "text", text: "done" }]);
+				mockStream.push({ type: "done", reason: callIndex === 0 ? "toolUse" : "stop", message });
+				callIndex++;
+			});
+			return mockStream;
+		});
+
+		const events: AgentEvent[] = [];
+		for await (const event of stream) {
+			events.push(event);
+		}
+
+		expect(executed).toBe(false);
+		const toolEnd = events.find((event) => event.type === "tool_execution_end");
+		expect(toolEnd?.type === "tool_execution_end" ? toolEnd.isError : false).toBe(true);
+	});
+
+	it("should pass prepared arguments through hooks and execution when schema validation is disabled", async () => {
+		const toolSchema = Type.Object({ value: Type.String() });
+		const order: string[] = [];
+		const observedArgs: unknown[] = [];
+		let preparedArgs: { value: number } | undefined;
+		const tool: AgentTool<typeof toolSchema, { value: number }> = {
+			name: "echo",
+			label: "Echo",
+			description: "Echo tool",
+			parameters: toolSchema,
+			argumentValidation: "passthrough",
+			prepareArguments(args) {
+				order.push("prepare");
+				preparedArgs = { value: (args as { legacyValue: number }).legacyValue };
+				return preparedArgs as unknown as { value: string };
+			},
+			async execute(_toolCallId, params) {
+				order.push("execute");
+				observedArgs.push(params);
+				return {
+					content: [{ type: "text", text: String(params.value) }],
+					details: { value: params.value as unknown as number },
+				};
+			},
+		};
+
+		const context: AgentContext = { systemPrompt: "", messages: [], tools: [tool] };
+		const config: AgentLoopConfig = {
+			model: createModel(),
+			convertToLlm: identityConverter,
+			beforeToolCall: async ({ args }) => {
+				order.push("before");
+				observedArgs.push(args);
+				return undefined;
+			},
+			afterToolCall: async ({ args }) => {
+				order.push("after");
+				observedArgs.push(args);
+				return undefined;
+			},
+		};
+		let callIndex = 0;
+		const stream = agentLoop([createUserMessage("echo something")], context, config, undefined, () => {
+			const mockStream = new MockAssistantStream();
+			queueMicrotask(() => {
+				const message =
+					callIndex === 0
+						? createAssistantMessage(
+								[
+									{
+										type: "toolCall",
+										id: "tool-1",
+										name: "echo",
+										arguments: { legacyValue: 42 },
+									},
+								],
+								"toolUse",
+							)
+						: createAssistantMessage([{ type: "text", text: "done" }]);
+				mockStream.push({ type: "done", reason: callIndex === 0 ? "toolUse" : "stop", message });
+				callIndex++;
+			});
+			return mockStream;
+		});
+
+		for await (const _event of stream) {
+			// consume
+		}
+
+		expect(order).toEqual(["prepare", "before", "execute", "after"]);
+		expect(observedArgs).toEqual([preparedArgs, preparedArgs, preparedArgs]);
+		expect(observedArgs[0]).not.toBe(preparedArgs);
+		expect(observedArgs.every((args) => args === observedArgs[0])).toBe(true);
+	});
+
 	it("should not execute tool calls from a length-truncated assistant message", async () => {
 		const toolSchema = Type.Object({ value: Type.String() });
 		const executed: string[] = [];

@@ -100,7 +100,7 @@ export interface BeforeToolCallContext {
 	assistantMessage: AssistantMessage;
 	/** The raw tool call block from `assistantMessage.content`. */
 	toolCall: AgentToolCall;
-	/** Validated tool arguments for the target tool schema. */
+	/** Prepared tool arguments. Schema validation is skipped for tools using passthrough validation. */
 	args: unknown;
 	/** Current agent context at the time the tool call is prepared. */
 	context: AgentContext;
@@ -112,7 +112,7 @@ export interface AfterToolCallContext {
 	assistantMessage: AssistantMessage;
 	/** The raw tool call block from `assistantMessage.content`. */
 	toolCall: AgentToolCall;
-	/** Validated tool arguments for the target tool schema. */
+	/** Arguments passed to the tool after preparation and any `beforeToolCall` mutation. */
 	args: unknown;
 	/** The executed tool result before any `afterToolCall` overrides are applied. */
 	result: AgentToolResult<any>;
@@ -391,6 +391,15 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any
 	 * Must return an object that matches `TParameters`.
 	 */
 	prepareArguments?: (args: unknown) => Static<TParameters>;
+	/**
+	 * Controls runtime argument validation for this tool.
+	 * - "schema": validate prepared arguments against `parameters` before execution.
+	 * - "passthrough": structured-clone prepared arguments and pass them to hooks and `execute`
+	 *   without schema validation or coercion.
+	 *
+	 * Default: "schema"
+	 */
+	argumentValidation?: "schema" | "passthrough";
 	/** Execute the tool call. Throw on failure instead of encoding errors in `content`. */
 	execute: (
 		toolCallId: string,
