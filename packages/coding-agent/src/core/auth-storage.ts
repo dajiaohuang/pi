@@ -4,7 +4,7 @@
  */
 
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile from "proper-lockfile";
 import { setTimeout as sleep } from "timers/promises";
@@ -61,7 +61,6 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 	private ensureFileExists(): void {
 		if (!existsSync(this.authPath)) {
 			writeFileSync(this.authPath, "{}", AUTH_FILE_WRITE_OPTIONS);
-			chmodSync(this.authPath, 0o600);
 		}
 	}
 
@@ -103,7 +102,6 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			const { result, next } = fn(current);
 			if (next !== undefined) {
 				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
-				chmodSync(this.authPath, 0o600);
 			}
 			return result;
 		} finally {
@@ -185,7 +183,6 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			options?.signal?.throwIfAborted();
 			if (next !== undefined) {
 				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
-				chmodSync(this.authPath, 0o600);
 			}
 			throwIfCompromised();
 			return result;
