@@ -19,9 +19,12 @@ export function getPiUserAgent(): string {
 	return nodeOs ? `pi (${nodeOs.platform()} ${nodeOs.release()}; ${nodeOs.arch()})` : "pi (browser)";
 }
 
-export function forcePiUserAgent(headers: ProviderHeaders): void {
+export function ensurePiUserAgent(headers: ProviderHeaders): void {
 	for (const name of Object.keys(headers)) {
-		if (name.toLowerCase() === "user-agent") delete headers[name];
+		if (name.toLowerCase() !== "user-agent") continue;
+		const value = headers[name];
+		if (value !== null && value.trim().length > 0) return;
+		delete headers[name];
 	}
 	headers["User-Agent"] = getPiUserAgent();
 }

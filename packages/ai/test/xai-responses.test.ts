@@ -184,7 +184,7 @@ describe("xAI Responses provider", () => {
 		});
 	});
 
-	it("keeps the SDK User-Agent for non-xAI Responses requests", async () => {
+	it("uses pi's User-Agent for non-xAI Responses requests", async () => {
 		let userAgent: string | null = null;
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
 			userAgent = new Request(input, init).headers.get("user-agent");
@@ -203,14 +203,13 @@ describe("xAI Responses provider", () => {
 		).result();
 
 		expect(result.stopReason, result.errorMessage).toBe("stop");
-		expect(userAgent).not.toBeNull();
-		expect(userAgent).not.toBe(PI_USER_AGENT);
+		expect(userAgent).toBe(PI_USER_AGENT);
 	});
 
-	it("forces pi's User-Agent on custom xAI Completions models over caller headers", async () => {
-		let userAgent: string | null = null;
+	it("uses pi's User-Agent by default and preserves caller headers for xAI Completions", async () => {
+		const userAgents: Array<string | null> = [];
 		vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-			userAgent = new Request(input, init).headers.get("user-agent");
+			userAgents.push(new Request(input, init).headers.get("user-agent"));
 			const chunks = [
 				{ id: "chatcmpl-ua", choices: [{ delta: { content: "ok" }, finish_reason: null, index: 0 }] },
 				{
@@ -243,13 +242,19 @@ describe("xAI Responses provider", () => {
 			contextWindow: 128000,
 			maxTokens: 16384,
 		};
-		const result = await streamOpenAICompletions(
+		const defaultResult = await streamOpenAICompletions(
+			customModel,
+			{ messages: [{ role: "user", content: "hello", timestamp: 1 }] },
+			{ apiKey: "xai-test-token" },
+		).result();
+		const customResult = await streamOpenAICompletions(
 			customModel,
 			{ messages: [{ role: "user", content: "hello", timestamp: 1 }] },
 			{ apiKey: "xai-test-token", headers: { "User-Agent": "custom-agent" } },
 		).result();
 
-		expect(result.stopReason, result.errorMessage).toBe("stop");
-		expect(userAgent).toBe(PI_USER_AGENT);
+		expect(defaultResult.stopReason, defaultResult.errorMessage).toBe("stop");
+		expect(customResult.stopReason, customResult.errorMessage).toBe("stop");
+		expect(userAgents).toEqual([PI_USER_AGENT, "custom-agent"]);
 	});
 });

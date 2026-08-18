@@ -34,7 +34,7 @@ import { splitDeferredTools } from "../utils/deferred-tools.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { headersToRecord } from "../utils/headers.ts";
 import { parseJsonWithRepair, parseStreamingJson } from "../utils/json-parse.ts";
-import { getPiUserAgent } from "../utils/pi-user-agent.ts";
+import { ensurePiUserAgent } from "../utils/pi-user-agent.ts";
 import { getProviderEnvValue } from "../utils/provider-env.ts";
 import { retryProviderRequest } from "../utils/provider-retry.ts";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.ts";
@@ -284,17 +284,9 @@ function mergeHeaders(...headerSources: (ProviderHeaders | undefined)[]): Provid
 	return merged;
 }
 
-function mergeClientHeaders(
-	model: Model<"anthropic-messages">,
-	...headerSources: (ProviderHeaders | undefined)[]
-): ProviderHeaders {
+function mergeClientHeaders(...headerSources: (ProviderHeaders | undefined)[]): ProviderHeaders {
 	const merged = mergeHeaders(...headerSources);
-	if (model.provider === "kimi-coding") {
-		for (const name of Object.keys(merged)) {
-			if (name.toLowerCase() === "user-agent") delete merged[name];
-		}
-		merged["User-Agent"] = getPiUserAgent();
-	}
+	ensurePiUserAgent(merged);
 	return merged;
 }
 
@@ -915,7 +907,6 @@ function createClient(
 			dangerouslyAllowBrowser: true,
 			fetch,
 			defaultHeaders: mergeClientHeaders(
-				model,
 				{
 					accept: "application/json",
 					"anthropic-dangerous-direct-browser-access": "true",
@@ -939,7 +930,6 @@ function createClient(
 			dangerouslyAllowBrowser: true,
 			fetch,
 			defaultHeaders: mergeClientHeaders(
-				model,
 				{
 					accept: "application/json",
 					"anthropic-dangerous-direct-browser-access": "true",
@@ -959,7 +949,6 @@ function createClient(
 	const sessionAffinityHeaders: ProviderHeaders =
 		sessionId && getAnthropicCompat(model).sendSessionAffinityHeaders ? { "x-session-affinity": sessionId } : {};
 	const defaultHeaders = mergeClientHeaders(
-		model,
 		{
 			accept: "application/json",
 			"anthropic-dangerous-direct-browser-access": "true",
