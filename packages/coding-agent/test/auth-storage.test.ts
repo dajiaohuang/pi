@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type CredentialStore, createModels, type Provider } from "@earendil-works/pi-ai";
@@ -153,6 +153,24 @@ describe("AuthStorage", () => {
 			anthropic: { type: "api_key", key: "new" },
 			openai: { type: "api_key", key: "external" },
 		});
+	});
+
+	test.skipIf(process.platform === "win32")("preserves the mode of an existing auth file", async () => {
+		writeAuthJson({ anthropic: { type: "api_key", key: "old" } });
+		chmodSync(authJsonPath, 0o640);
+		const storage = AuthStorage.create(authJsonPath);
+
+		await storage.modify("anthropic", async () => ({ type: "api_key", key: "new" }));
+
+		expect(statSync(authJsonPath).mode & 0o777).toBe(0o640);
+	});
+
+	test.skipIf(process.platform === "win32")("creates new auth files with owner-only permissions", () => {
+		const storage = AuthStorage.create(authJsonPath);
+
+		storage.reload();
+
+		expect(statSync(authJsonPath).mode & 0o777).toBe(0o600);
 	});
 
 	test("modify with undefined leaves the current credential unchanged", async () => {
