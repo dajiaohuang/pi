@@ -85,6 +85,10 @@ const RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
 	"try your request again",
 	"please retry your request",
 
+	// OpenAI Codex can return this terminal-looking text for transient backend
+	// failures that succeed when the same request is retried (#8138).
+	"^Sorry, something went wrong$",
+
 	// gRPC based providers (e.g. NVIDIA NIM)
 	"ResourceExhausted",
 ]);

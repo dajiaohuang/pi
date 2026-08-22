@@ -32,6 +32,14 @@ describe("provider retry classification", () => {
 		).toBe(true);
 	});
 
+	it("matches the OpenAI Codex transient fallback message", () => {
+		expect(
+			isRetryableAssistantError(
+				fauxAssistantMessage("", { stopReason: "error", errorMessage: "Sorry, something went wrong" }),
+			),
+		).toBe(true);
+	});
+
 	it("matches Bun fetch socket drop wording", () => {
 		expect(
 			isRetryableAssistantError(
